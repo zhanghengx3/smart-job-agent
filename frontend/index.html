@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobAgent - 智能求职助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "Microsoft YaHei", sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 40px 0;
+        }
+        .header h1 {
+            font-size: 32px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: #666;
+            margin-top: 10px;
+        }
+        .input-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .input-box {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .input-box h3 {
+            margin-bottom: 12px;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .analyze-btn {
+            display: block;
+            width: 200px;
+            margin: 30px auto;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+        }
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .result-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            display: none;
+        }
+        .score-card {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .score {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .score-label {
+            color: #666;
+            margin-top: 8px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0 12px;
+            padding-left: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .suggestion-item {
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .priority-high { border-left: 3px solid #e74c3c; }
+        .priority-mid { border-left: 3px solid #f39c12; }
+        .priority-low { border-left: 3px solid #3498db; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 JobAgent 智能求职助手</h1>
+            <p>基于多智能体的个性化求职分析平台</p>
+        </div>
+
+        <div class="input-section">
+            <div class="input-box">
+                <h3>📄 粘贴你的简历</h3>
+                <textarea id="resumeInput" placeholder="把你的简历内容粘贴到这里..."></textarea>
+            </div>
+            <div class="input-box">
+                <h3>💼 粘贴目标岗位 JD（可选）</h3>
+                <textarea id="jdInput" placeholder="岗位描述粘贴到这里，进行匹配分析..."></textarea>
+            </div>
+        </div>
+
+        <button class="analyze-btn" id="analyzeBtn" onclick="startAnalyze()">
+            开始智能分析
+        </button>
+
+        <div class="result-section" id="resultSection">
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <div>AI 正在分析中，请稍候...</div>
+            </div>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000/api";
+
+        async function startAnalyze() {
+            const resume = document.getElementById("resumeInput").value.trim();
+            const jd = document.getElementById("jdInput").value.trim();
+            const btn = document.getElementById("analyzeBtn");
+            const resultSection = document.getElementById("resultSection");
+            const loading = document.getElementById("loading");
+            const resultContent = document.getElementById("resultContent");
+
+            if (!resume) {
+                alert("请先输入简历内容");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "分析中...";
+            resultSection.style.display = "block";
+            loading.style.display = "block";
+            resultContent.innerHTML = "";
+
+            try {
+                const response = await fetch(`${API_BASE}/analyze`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        resume_text: resume,
+                        jd_text: jd,
+                        analysis_type: jd ? "full" : "resume"
+                    })
+                });
+
+                const data = await response.json();
+                loading.style.display = "none";
+
+                if (data.success) {
+                    renderResult(data.data);
+                } else {
+                    resultContent.innerHTML = `<p style="color:red;">分析失败：${data.message}</p>`;
+                }
+            } catch (e) {
+                loading.style.display = "none";
+                resultContent.innerHTML = `<p style="color:red;">请求失败：${e.message}</p>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "开始智能分析";
+            }
+        }
+
+        function renderResult(data) {
+            let html = "";
+
+            if (data.match) {
+                html += `
+                    <div class="score-card">
+                        <div class="score">${data.match.overall_score}</div>
+                        <div class="score-label">人岗匹配度</div>
+                    </div>
+                `;
+
+                html += `<div class="section-title">💪 你的优势</div>`;
+                data.match.strengths.forEach(s => {
+                    html += `<div class="suggestion-item priority-high">✅ ${s}</div>`;
+                });
+
+                html += `<div class="section-title">⚠️ 需要提升</div>`;
+                data.match.weaknesses.forEach(w => {
+                    html += `<div class="suggestion-item priority-mid">📌 ${w}</div>`;
+                });
+            }
+
+            if (data.optimization) {
+                html += `
+                    <div class="score-card">
+                        <div class="score">${data.optimization.overall_score} → ${data.optimization.estimated_score}</div>
+                        <div class="score-label">简历优化前后得分</div>
+                    </div>
+                `;
+
+                html += `<div class="section-title">✏️ 优化建议</div>`;
+                data.optimization.suggestions.forEach((s, i) => {
+                    const prioClass = s.priority === "高" ? "priority-high" :
+                                     s.priority === "中" ? "priority-mid" : "priority-low";
+                    html += `
+                        <div class="suggestion-item ${prioClass}">
+                            <strong>【${s.section} · ${s.priority}优先级】</strong>
+                            <p style="margin:8px 0;color:#999;">原文：${s.original}</p>
+                            <p style="margin:8px 0;color:#27ae60;">优化：${s.optimized}</p>
+                            <p style="margin:8px 0;color:#666;font-size:13px;">理由：${s.reason}</p>
+                        </div>
+                    `;
+                });
+            }
+
+            document.getElementById("resultContent").innerHTML = html;
+        }
+    </script>
+</body>
+</html>
